@@ -2,8 +2,9 @@ import pandas as pd
 from sqlalchemy import create_engine
 
 file_path = 'company_esg_financial_dataset.csv'
-# Our verified local connection string to your PostgreSQL
-db_url = 'postgresql+psycopg2://postgres:postgres01@localhost:5432/postgres'
+# Database connection string - replace placeholders with your actual credentials
+db_url = 'postgresql+psycopg2://YOUR_DATABASE_USER:YOUR_DATABASE_PASSWORD@YOUR_DATABASE_HOST:5432/YOUR_DATABASE_NAME'
+
 
 try:
     print("1. Loading and cleaning data before database upload...")
