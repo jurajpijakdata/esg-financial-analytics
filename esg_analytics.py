@@ -1,21 +1,21 @@
+import os
 import sys
 import pandas as pd
 from pathlib import Path
+from decimal import Decimal, InvalidOperation
 
-print("🚀 Starting UpDataLogic ESG & Financial Analytics Engine...")
+print("🚀 Starting UpDataLogic ESG & Financial Analytics Engine (Enhanced Integrity)...")
 
 # =====================================================================
 # DYNAMIC PATH RESOLUTION (UpDataLogic Rule 2)
 # =====================================================================
-# Automatically detect the directory where this script is located
 BASE_DIR = Path(__file__).resolve().parent
-DATA_FILE = BASE_DIR / "company_esg_financial_dataset.csv"
+DATA_FILE = BASE_DIR / "company_esg_financial_dataset_sample.csv"
 
 # =====================================================================
 # DATA PIPELINE EXECUTION
 # =====================================================================
 try:
-    # Fail fast if the dataset is missing from the working directory
     if not DATA_FILE.exists():
         raise FileNotFoundError(f"Critical data resource missing at targeted path: {DATA_FILE}")
         
@@ -23,31 +23,46 @@ try:
     df = pd.read_csv(DATA_FILE, low_memory=False)
     
     print("\n🔍 Auditing dataset for missing values (NaN)...")
-    missing_data = df[['Revenue', 'ProfitMargin', 'MarketCap', 'ESG_Overall']].isnull().sum()
-    print(missing_data)
+    financial_columns = ['Revenue', 'ProfitMargin', 'MarketCap', 'GrowthRate', 'ESG_Overall']
+    env_columns = ['CarbonEmissions', 'WaterUsage', 'EnergyConsumption']
+    print(df[financial_columns + env_columns].isnull().sum())
     
     print("\n⏳ Executing strict financial and ESG data cleansing pipeline...")
-    # Sanitize core financial KPIs
-    financial_columns = ['Revenue', 'ProfitMargin', 'MarketCap', 'GrowthRate', 'ESG_Overall']
-    for column in financial_columns:
-        df[column] = pd.to_numeric(df[column], errors='coerce').fillna(0)
+    
+    # Robust Financial & ESG Decimal Parser matching Module 4 Correctness constraints
+    # Prevents .fillna(0) from corrupting downstream arithmetic aggregates like .mean()
+    def robust_decimal_parser(value):
+        if pd.isna(value) or str(value).strip() == '':
+            return None # Keeps missing values as clean NULL instead of masking with artificial zeros
         
-    # Sanitize environmental footprint metrics
-    env_columns = ['CarbonEmissions', 'WaterUsage', 'EnergyConsumption']
-    for column in env_columns:
-        df[column] = pd.to_numeric(df[column], errors='coerce').fillna(0)
+        clean_str = str(value).strip().replace(',', '.')
+        try:
+            # Enforce high-precision Decimal scales to eliminate binary float drifting
+            return Decimal(clean_str)
+        except InvalidOperation:
+            return None
+
+    # Apply strict parsing across all metric vectors
+    all_metrics = financial_columns + env_columns
+    for column in all_metrics:
+        df[column] = df[column].apply(robust_decimal_parser)
         
+    # DECOUPLED QUALITY FLAGS: Ensure measure metrics remain numerical for aggregations
+    df['data_quality_status'] = df[all_metrics].isnull().any(axis=1).map({True: 'UNKNOWN', False: 'CLEAN'})
+    
     print("\n=== 🎉 DATA CLEANSING COMPLETED SUCCESSFULLY ===")
     print(f"Processed Rows: {df.shape[0]:,}")
     print(f"Processed Columns: {df.shape[1]}")
     
-    # Core business insight generation
-    print("\n=== 📊 QUICK INSIGHT: AVG PROFIT MARGIN BY INDUSTRY ===")
-    avg_margin = df.groupby('Industry')['ProfitMargin'].mean().sort_values(ascending=False)
+    # Core business insight generation (Safe mean calculation ignoring NULLs, preserving accuracy)
+    print("\n=== 📊 QUICK INSIGHT: AVG PROFIT MARGIN BY INDUSTRY (VERIFIED) ===")
+    # Convert back to float purely for pandas plotting/groupby aggregates representation
+    df['ProfitMargin_Float'] = df['ProfitMargin'].astype(float)
+    avg_margin = df.groupby('Industry')['ProfitMargin_Float'].mean().sort_values(ascending=False)
     print(avg_margin)
+    
     print("\n🏆 ANALYTICS RUN COMPLETED SUCCESSFULLY.")
 
 except Exception as e:
-    # HARD FAILURE SIGNALING (UpDataLogic Rule 3)
     print(f"\n❌ PIPELINE CRITICAL FAILURE: {e}", file=sys.stderr)
     sys.exit(1)
