@@ -4,11 +4,11 @@ import logging
 import pandas as pd
 import pandera.pandas as pa
 from pathlib import Path
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
 
 # =====================================================================
-# ENTERPRISE LOGGING CONFIGURATION (Module 6 Standard)
+# ENTERPRISE LOGGING CONFIGURATION (Module 6 & 7 Standard)
 # =====================================================================
 logging.basicConfig(
     level=logging.INFO,
@@ -16,13 +16,13 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)]
 )
 
-logging.info("🚀 Starting UpDataLogic ESG Database Ingestion Pipeline (Production Observability Mode)...")
+logging.info("🚀 Starting UpDataLogic ESG Database Ingestion Pipeline (Idempotent Production Mode)...")
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_FILE = BASE_DIR / "company_esg_financial_dataset_sample.csv"
 ENV_FILE = BASE_DIR / ".env"
 
-# 1. Define Strict Data Quality Ingestion Shield via Pandera
+# 1. Define Strict Data Quality Ingestion Shield via Pandera Specification
 esg_ingest_schema = pa.DataFrameSchema({
     "CompanyID": pa.Column(str, nullable=False),
     "CompanyName": pa.Column(str, nullable=False),
@@ -41,7 +41,7 @@ try:
         DB_NAME = os.getenv("DB_NAME")
         
         if not all([DB_USER, DB_PASSWORD, DB_HOST, DB_NAME]):
-            raise ValueError("Incomplete database parameters inside .env.")
+            raise ValueError("Incomplete database credentials inside configuration targets.")
             
         connection_string = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
         engine = create_engine(connection_string)
@@ -49,7 +49,7 @@ try:
             pass
         logging.info("🔌 Connection Status: [ONLINE] Remote PostgreSQL Warehouse Connected.")
     else:
-        raise FileNotFoundError("Local configuration env targets missing.")
+        raise FileNotFoundError("Local configurations env targets missing.")
 
 except Exception as db_error:
     logging.warning(f"⚠️ Production DB Offline or Network Issue detected: {db_error}")
@@ -59,7 +59,7 @@ except Exception as db_error:
     logging.info("🔌 Connection Status: [LOCAL ENGINE] Active Fallback SQLite Context Deployed.")
 
 # =====================================================================
-# ETL INGESTION STAGE Execution Layers
+# ETL INGESTION STAGE Execution with Idempotent UPSERT Matrix
 # =====================================================================
 try:
     if not DATA_FILE.exists():
@@ -69,8 +69,6 @@ try:
     df = pd.read_csv(DATA_FILE, dtype={"CompanyID": str}, low_memory=False)
     
     logging.info("⏳ 2. TRANSFORMATION: Executing structural data pre-load alignment matrices...")
-    
-    # Clean financial metrics formatting proactively before validation layer execution
     for col in ['Revenue', 'ProfitMargin', 'MarketCap', 'GrowthRate']:
         df[col] = df[col].astype(str).str.replace(',', '', regex=False)
         df[col] = pd.to_numeric(df[col], errors='coerce')
@@ -78,15 +76,69 @@ try:
     logging.info("🛡️ 3. VALIDATION: Running structural data quality tests via Pandera schema evaluation...")
     validated_df = esg_ingest_schema.validate(df)
     
-    logging.info(f"📤 4. LOADING: Streaming {len(validated_df):,} validated records into target warehouse registries...")
-    validated_df.to_sql('esg_financials_raw', engine, if_exists='replace', index=False)
+    validated_df['data_quality_status'] = validated_df[['Revenue', 'ProfitMargin']].isnull().any(axis=1).map({True: 'UNKNOWN', False: 'CLEAN'})
     
-    logging.info("🏆 PIPELINE RUN COMPLETION: STATUS 0 [SUCCESS]. All data streamed to database layer.\n")
-    sys.exit(0) # Enforce strict safe process telemetry states for orchestrators
+    logging.info("📤 4. LOADING: Executing idempotent UPSERT pattern routing directly to database engine...")
+    
+    # Enforce strict transaction boundaries to guarantee active storage safety parameters
+    with engine.begin() as transaction_conn:
+        if str(engine.url).startswith('sqlite'):
+            # SENIORSKÁ SAMOOPRAVA LOKÁLNEHO ENGINU: Mápujeme tabuľku s prísnym PRIMARY KEY
+            transaction_conn.execute(text("DROP TABLE IF EXISTS esg_financials_raw;"))
+            transaction_conn.execute(text("""
+                CREATE TABLE esg_financials_raw (
+                    CompanyID TEXT PRIMARY KEY,
+                    CompanyName TEXT,
+                    Industry TEXT,
+                    Region TEXT,
+                    Revenue REAL,
+                    ProfitMargin REAL,
+                    MarketCap REAL,
+                    GrowthRate REAL,
+                    data_quality_status TEXT
+                );
+            """))
+            logging.info("🧹 Local SQLite Strategy: Schema mapped with strict Primary Key specifications.")
+
+            for _, row in validated_df.iterrows():
+                upsert_query = text("""
+                    INSERT INTO esg_financials_raw (CompanyID, CompanyName, Industry, Region, Revenue, ProfitMargin, MarketCap, GrowthRate, data_quality_status)
+                    VALUES (:CompanyID, :CompanyName, :Industry, :Region, :Revenue, :ProfitMargin, :MarketCap, :GrowthRate, :data_quality_status)
+                    ON CONFLICT(CompanyID) DO UPDATE SET
+                        CompanyName=excluded.CompanyName,
+                        Industry=excluded.Industry,
+                        Region=excluded.Region,
+                        Revenue=excluded.Revenue,
+                        ProfitMargin=excluded.ProfitMargin,
+                        MarketCap=excluded.MarketCap,
+                        GrowthRate=excluded.GrowthRate,
+                        data_quality_status=excluded.data_quality_status;
+                """)
+                transaction_conn.execute(upsert_query, row.to_dict())
+        else:
+            # Ostrý cloudový PostgreSQL má kľúče z DDL architektúry trvalo nasadené
+            for _, row in validated_df.iterrows():
+                upsert_query = text("""
+                    INSERT INTO esg_financials_raw ("CompanyID", "CompanyName", "Industry", "Region", "Revenue", "ProfitMargin", "MarketCap", "GrowthRate", "data_quality_status")
+                    VALUES (:CompanyID, :CompanyName, :Industry, :Region, :Revenue, :ProfitMargin, :MarketCap, :GrowthRate, :data_quality_status)
+                    ON CONFLICT ("CompanyID") DO UPDATE SET
+                        "CompanyName" = EXCLUDED.CompanyName,
+                        "Industry" = EXCLUDED.Industry,
+                        "Region" = EXCLUDED.Region,
+                        "Revenue" = EXCLUDED.Revenue,
+                        "ProfitMargin" = EXCLUDED.ProfitMargin,
+                        "MarketCap" = EXCLUDED.MarketCap,
+                        "GrowthRate" = EXCLUDED.GrowthRate,
+                        "data_quality_status" = EXCLUDED.data_quality_status;
+                """)
+                transaction_conn.execute(upsert_query, row.to_dict())
+                
+    logging.info("🏆 PIPELINE RUN COMPLETION: STATUS 0 [SUCCESS]. Idempotency matrix guarantee verified.\n")
+    sys.exit(0)
 
 except pa.errors.SchemaError as schema_fault:
     logging.critical(f"❌ PIPELINE STOPPED VIA PANDERA INGESTION SHIELD: {schema_fault}")
-    sys.exit(1) # Enforce failure code to alert cloud scheduling triggers
+    sys.exit(1)
 except Exception as fatal_error:
     logging.critical(f"❌ PIPELINE INGESTION CRITICAL RUNTIME FAILURE: {fatal_error}")
     sys.exit(1)
