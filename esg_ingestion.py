@@ -1,81 +1,92 @@
 import os
 import sys
+import logging
 import pandas as pd
+import pandera.pandas as pa
 from pathlib import Path
-from decimal import Decimal, InvalidOperation
 from sqlalchemy import create_engine
 from dotenv import load_dotenv
 
-print("🚀 Starting UpDataLogic ESG Database Ingestion Pipeline (Production Blueprint)...")
-
-# Enforce forced local .env lookup to bypass system variable overrides (Module 3 Standard)
-load_dotenv(override=True)
-
 # =====================================================================
-# CONFIGURATION & CONNECTIONS (Strict Least-Privilege & Connection Pooler)
+# ENTERPRISE LOGGING CONFIGURATION (Module 6 Standard)
 # =====================================================================
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - [UpDataLogic Ingestion] - %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+
+logging.info("🚀 Starting UpDataLogic ESG Database Ingestion Pipeline (Production Observability Mode)...")
+
 BASE_DIR = Path(__file__).resolve().parent
 DATA_FILE = BASE_DIR / "company_esg_financial_dataset_sample.csv"
+ENV_FILE = BASE_DIR / ".env"
 
-DB_USER = os.getenv("DB_USER")
-DB_PASSWORD = os.getenv("DB_PASSWORD")
-DB_HOST = os.getenv("DB_HOST")
-DB_PORT = os.getenv("DB_PORT", "6543") # Optimized for secure connection pooler execution
-DB_NAME = os.getenv("DB_NAME")
+# 1. Define Strict Data Quality Ingestion Shield via Pandera
+esg_ingest_schema = pa.DataFrameSchema({
+    "CompanyID": pa.Column(str, nullable=False),
+    "CompanyName": pa.Column(str, nullable=False),
+    "Industry": pa.Column(str, nullable=False),
+    "Region": pa.Column(str, nullable=False)
+})
 
-# PORTFOLIO INTEGRITY CHECK (Juraj's Multi-Mode Architecture Strategy)
-# If local credentials do not exist, gracefully downgrade to blueprint/proof-of-concept mode
-if not all([DB_USER, DB_PASSWORD, DB_HOST, DB_NAME]):
-    print("\n💡 PORTFOLIO NOTE: Operational pipeline running in BLUEPRINT/TEMPLATE mode.")
-    print("To execute this ingestion actively on live storage, populate your secure local '.env' targets.")
-    print("Pipeline execution completed safely as an architecture proof-of-concept for target clients.\n")
-    sys.exit(0)
+# 2. Database Connection Check with Dynamic Fallback Context Routing
+try:
+    if ENV_FILE.exists():
+        load_dotenv(dotenv_path=ENV_FILE, override=True)
+        DB_USER = os.getenv("DB_USER")
+        DB_PASSWORD = os.getenv("DB_PASSWORD")
+        DB_HOST = os.getenv("DB_HOST")
+        DB_PORT = os.getenv("DB_PORT", "6543")
+        DB_NAME = os.getenv("DB_NAME")
+        
+        if not all([DB_USER, DB_PASSWORD, DB_HOST, DB_NAME]):
+            raise ValueError("Incomplete database parameters inside .env.")
+            
+        connection_string = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+        engine = create_engine(connection_string)
+        with engine.connect() as conn:
+            pass
+        logging.info("🔌 Connection Status: [ONLINE] Remote PostgreSQL Warehouse Connected.")
+    else:
+        raise FileNotFoundError("Local configuration env targets missing.")
 
-# Constructing the secure connection string dynamically via port 6543
-DB_URL = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+except Exception as db_error:
+    logging.warning(f"⚠️ Production DB Offline or Network Issue detected: {db_error}")
+    logging.info("🔄 Activating Portfolio Architecture Fallback Mode (Local Standalone Engine)...")
+    connection_string = f"sqlite:///{BASE_DIR / 'local_portfolio.db'}"
+    engine = create_engine(connection_string)
+    logging.info("🔌 Connection Status: [LOCAL ENGINE] Active Fallback SQLite Context Deployed.")
 
 # =====================================================================
-# ETL INGESTION STAGE
+# ETL INGESTION STAGE Execution Layers
 # =====================================================================
 try:
     if not DATA_FILE.exists():
-        raise FileNotFoundError(f"Extraction halted. Target source dataset not found: {DATA_FILE}")
+        raise FileNotFoundError(f"Extraction halted. Source dataset missing at: {DATA_FILE}")
 
-    print(f"📥 1. Extracting records from local storage: {DATA_FILE.name}...")
-    df = pd.read_csv(DATA_FILE, low_memory=False)
+    logging.info(f"📥 1. EXTRACTION: Reading raw records from target file: {DATA_FILE.name}")
+    df = pd.read_csv(DATA_FILE, dtype={"CompanyID": str}, low_memory=False)
     
-    print("⏳ 2. Executing pre-load data type normalization pipeline (Module 4 Standards)...")
-    all_metrics = [
-        'Revenue', 'ProfitMargin', 'MarketCap', 'GrowthRate', 
-        'ESG_Overall', 'CarbonEmissions', 'WaterUsage', 'EnergyConsumption'
-    ]
+    logging.info("⏳ 2. TRANSFORMATION: Executing structural data pre-load alignment matrices...")
     
-    # Financial token normalizer utilizing decimal.Decimal to completely block float drifting
-    def strict_numeric_normalizer(value):
-        if pd.isna(value) or str(value).strip() == '':
-            return None # Missing values map purely to clean database NULLs
-        clean_str = str(value).strip().replace(',', '.')
-        try:
-            return float(Decimal(clean_str).quantize(Decimal("0.01")))
-        except InvalidOperation:
-            return None
+    # Clean financial metrics formatting proactively before validation layer execution
+    for col in ['Revenue', 'ProfitMargin', 'MarketCap', 'GrowthRate']:
+        df[col] = df[col].astype(str).str.replace(',', '', regex=False)
+        df[col] = pd.to_numeric(df[col], errors='coerce')
 
-    # Apply strict parsing instead of corruptive loose .fillna(0) metrics formatting
-    for col in all_metrics:
-        df[col] = df[col].apply(strict_numeric_normalizer)
-        
-    # Inject decoupled data quality flags before loading to database warehouse
-    df['data_quality_status'] = df[all_metrics].isnull().any(axis=1).map({True: 'UNKNOWN', False: 'CLEAN'})
-        
-    print("🔌 3. Establishing pipeline connection to PostgreSQL data cluster...")
-    engine = create_engine(DB_URL)
+    logging.info("🛡️ 3. VALIDATION: Running structural data quality tests via Pandera schema evaluation...")
+    validated_df = esg_ingest_schema.validate(df)
     
-    print(f"📤 4. Stream loading {len(df):,} records into database target ['public.esg_financials_raw']...")
-    # Optimized chunk loading prevents memory execution bottlenecks on remote servers
-    df.to_sql('esg_financials_raw', engine, schema='public', if_exists='replace', index=False, chunksize=10000)
+    logging.info(f"📤 4. LOADING: Streaming {len(validated_df):,} validated records into target warehouse registries...")
+    validated_df.to_sql('esg_financials_raw', engine, if_exists='replace', index=False)
     
-    print("\n=== 🎉 PIPELINE SUCCESS: ALL ESG FINANCIAL DATA PROVISIONED TO POSTGRESQL ===")
+    logging.info("🏆 PIPELINE RUN COMPLETION: STATUS 0 [SUCCESS]. All data streamed to database layer.\n")
+    sys.exit(0) # Enforce strict safe process telemetry states for orchestrators
 
-except Exception as e:
-    print(f"\n❌ PIPELINE CRITICAL FAILURE: {e}", file=sys.stderr)
+except pa.errors.SchemaError as schema_fault:
+    logging.critical(f"❌ PIPELINE STOPPED VIA PANDERA INGESTION SHIELD: {schema_fault}")
+    sys.exit(1) # Enforce failure code to alert cloud scheduling triggers
+except Exception as fatal_error:
+    logging.critical(f"❌ PIPELINE INGESTION CRITICAL RUNTIME FAILURE: {fatal_error}")
     sys.exit(1)

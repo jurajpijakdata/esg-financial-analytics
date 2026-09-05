@@ -1,23 +1,37 @@
 import os
 import sys
+import logging
 import pandas as pd
 import pandera.pandas as pa
 from pathlib import Path
-from decimal import Decimal, InvalidOperation
 
-print("🚀 Starting UpDataLogic ESG & Financial Analytics Engine (Self-Healing & Validated)...")
+# Import the decoupled tested business logic from our parser module
+from esg_parser import clean_esg_numeric_vector
 
 # =====================================================================
-# DYNAMIC PATH RESOLUTION
+# ENTERPRISE LOGGING CONFIGURATION (Module 6 Standard)
 # =====================================================================
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - [UpDataLogic ESG Engine] - %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+
+logging.info("🚀 Starting UpDataLogic ESG & Financial Analytics Engine (Production Observability Mode)...")
+
 BASE_DIR = Path(__file__).resolve().parent
 DATA_FILE = BASE_DIR / "company_esg_financial_dataset_sample.csv"
 
-# =====================================================================
-# 1. DECLARATIVE DATA QUALITY SCHEMA (Ultimate Safety Validation)
-# =====================================================================
+# First-class operation metrics trackers for alerting layers
+METRICS_TRACKER = {
+    "total_records_extracted": 0,
+    "successfully_healed_records": 0,
+    "rejected_records_critical": 0
+}
+
+# 1. DECLARATIVE DATA QUALITY SCHEMA SHIELD (Pandera Specification)
 esg_data_schema = pa.DataFrameSchema({
-    "CompanyID": pa.Column(str, nullable=False), # Verified to be pure string text
+    "CompanyID": pa.Column(str, nullable=False),
     "CompanyName": pa.Column(str, nullable=False),
     "Industry": pa.Column(str, nullable=False),
     "Region": pa.Column(str, nullable=False),
@@ -31,70 +45,57 @@ esg_data_schema = pa.DataFrameSchema({
     "EnergyConsumption": pa.Column(float, nullable=True)
 })
 
-# =====================================================================
-# DATA PIPELINE EXECUTION
-# =====================================================================
+# DATA PIPELINE EXECUTION WITH DEFENSIVE MONITORING
 try:
     if not DATA_FILE.exists():
         raise FileNotFoundError(f"Critical data resource missing at targeted path: {DATA_FILE}")
         
-    print(f"📥 Loading raw dataset: {DATA_FILE.name}...")
-    
-    # KROK 1: SAMOOPRAVA NAČÍTANIA – automaticky opravíme typ stĺpca CompanyID na text (str),
-    # aj keby ho v pondelok ráno poslal klient v CSV ako čisté celé čísla!
+    logging.info(f"📥 1. EXTRACTION: Loading raw corporate dataset from: {DATA_FILE.name}")
     df = pd.read_csv(DATA_FILE, dtype={"CompanyID": str}, low_memory=False)
     
-    print("⏳ Executing high-precision corporate data healing layer...")
+    METRICS_TRACKER["total_records_extracted"] = len(df)
+    logging.info(f"✅ EXTRACTION SUCCESS: Pulled {METRICS_TRACKER['total_records_extracted']:,} logs into high-performance dataframe memory.")
     
-    # Samoopravná funkcia: automaticky vymaže tisíckové čiarky a opraví formát čísla z textu
-    def self_heal_numeric_text(value):
-        if pd.isna(value) or str(value).strip() == '':
-            return None
-        
-        # Automatické odstraňovanie tisíckových čiarok a oprava desatinných bodiek
-        clean_str = str(value).strip()
-        if ',' in clean_str and '.' in clean_str:
-            clean_str = clean_str.replace(',', '')
-        elif ',' in clean_str and '.' not in clean_str:
-            clean_str = clean_str.replace(',', '.')
-            
-        try:
-            return Decimal(clean_str)
-        except InvalidOperation:
-            return None # Ak je text totálne zničený, vráti None, aby to neskreslilo priemery nulkami
+    logging.info("⏳ 2. TRANSFORMATION: Executing high-precision financial healing pipelines...")
 
     financial_columns = ['Revenue', 'ProfitMargin', 'MarketCap', 'GrowthRate', 'ESG_Overall']
     env_columns = ['CarbonEmissions', 'WaterUsage', 'EnergyConsumption']
     all_metrics = financial_columns + env_columns
     
-    # KROK 2: SAMOOPRAVA ČÍSELNÝCH STĹPCOV – preženieme všetky metriky cez náš samoopravný proces,
-    # čím Pandas donútime bezpečne načítať číselné hodnoty aj s textovými preklepmi
+    # Run data normalization row-by-row and extract anomalies to NULL mapping
     for column in all_metrics:
-        # Vytvoríme vysokopresnú objektovú vrstvu pre bezpečné výpočty bez driftovania floatov
-        df[f'{column}_Decimal_Obj'] = df[column].apply(self_heal_numeric_text)
-        # Vytvoríme float verziu pre štrukturálnu Pandera schému a Power BI reporting
+        df[f'{column}_Decimal_Obj'] = [clean_esg_numeric_vector(val) for val in df[column]]
         df[column] = df[f'{column}_Decimal_Obj'].apply(lambda x: float(x) if x is not None else None)
         
-    print("🛡️ Running declarative data quality checks via Pandera schema evaluation...")
-    # Pandera overí už našu automaticky opravenú a zrovnanú tabuľku
+    # Calculate operational data quality status vector flags
+    df['data_quality_status'] = df[all_metrics].isnull().any(axis=1).map({True: 'UNKNOWN', False: 'CLEAN'})
+    
+    # Track critical rejections as first-class output parameters
+    METRICS_TRACKER["rejected_records_critical"] = int(df['ProfitMargin'].isna().sum())
+    METRICS_TRACKER["successfully_healed_records"] = METRICS_TRACKER["total_records_extracted"] - METRICS_TRACKER["rejected_records_critical"]
+        
+    logging.info("🛡️ 3. VALIDATION: Running declarative structural data quality tests via Pandera schema evaluation...")
     validated_df = esg_data_schema.validate(df)
     
-    # Izolácia neopraviteľných poškodených riadkov do kvalitatívneho vektora
-    validated_df['data_quality_status'] = validated_df[all_metrics].isnull().any(axis=1).map({True: 'UNKNOWN', False: 'CLEAN'})
+    rejection_rate = (METRICS_TRACKER["rejected_records_critical"] / METRICS_TRACKER["total_records_extracted"]) * 100
+    logging.info(f"📊 DATA QUALITY METRICS: Clean/Healed: {METRICS_TRACKER['successfully_healed_records']:,} | Quarantined/NULL: {METRICS_TRACKER['rejected_records_critical']:,} ({rejection_rate:.2f}%)")
     
-    print("\n=== 🎉 DATA VALIDATION & CLEANSING COMPLETED SUCCESSFULLY ===")
-    print(f"Processed Rows: {validated_df.shape[0]:,}")
-    
-    print("\n=== 📊 QUICK INSIGHT: AVG PROFIT MARGIN BY INDUSTRY (VERIFIED) ===")
+    # Alerting threshold constraints validation (Fail-fast principle rule)
+    if rejection_rate > 5.0:
+        raise ValueError(f"Pipeline execution aborted. Rejection rate {rejection_rate:.2f}% breached production threshold limit (5.0%)")
+        
+    logging.info("\n=== 📊 QUICK INSIGHT: AVG PROFIT MARGIN BY INDUSTRY (VERIFIED) ===")
     validated_df['ProfitMargin_Float'] = validated_df['ProfitMargin_Decimal_Obj'].astype(float)
     avg_margin = validated_df.groupby('Industry')['ProfitMargin_Float'].mean().sort_values(ascending=False)
     print(avg_margin)
+    print("=" * 60)
     
-    print("\n🏆 ANALYTICS RUN COMPLETED SUCCESSFULLY.")
+    logging.info("🏆 PIPELINE PROCESS COMPLETION: STATUS 0 [SUCCESS]. Financial telemetry secured safely.\n")
+    sys.exit(0) # Guarantee clean orchestrator exit status code parameters
 
 except pa.errors.SchemaError as schema_fault:
-    print(f"\n❌ DATA QUALITY BREACH DETECTED BY PANDERA:\n{schema_fault}", file=sys.stderr)
-    sys.exit(1)
-except Exception as e:
-    print(f"\n❌ PIPELINE CRITICAL FAILURE: {e}", file=sys.stderr)
+    logging.critical(f"❌ PIPELINE STOPPED BY PANDERA STRUCTURAL SHIELD: {schema_fault}")
+    sys.exit(1) # Enforce strict exit 1 flags for schedulers
+except Exception as fatal_error:
+    logging.critical(f"❌ PIPELINE CRITICAL RUNTIME FAILURE: {fatal_error}")
     sys.exit(1)

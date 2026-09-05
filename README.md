@@ -1,17 +1,20 @@
 # 📊 Corporate ESG & Financial Performance Analytics Pipeline
 
-A self-directed data engineering and portfolio framework modeling the statistical relationship between corporate sustainability registries (**ESG Scores**) and actual market profitability. This pipeline processes an analytical dataset containing over **11,000 global corporate records**, implementing a self-healing cleaning architecture, declarative data schema validations, automated cloud templates, and relational database SQL modeling.
+A self-directed data engineering and portfolio framework modeling the statistical relationship between corporate sustainability registries (**ESG Scores**) and actual market profitability. This pipeline processes an analytical dataset containing over **11,000 global corporate records**, implementing a self-healing cleaning architecture, declarative data schema validations, corporate observability logging handlers, automated cloud templates, and relational database SQL modeling.
 
 ## 🚀 Live Interactive Dashboard Preview
 ![ESG Financial Dashboard](dashboard_preview.gif)
 
 ---
 
-## 🏗️ Architecture Design: Self-Healing & Automated Verification Layout
-To maximize data product safety and project robustness across active enterprise reporting schedules, the framework deploys a strict multi-layered engineering and validation layout:
-1. **Self-Healing Pre-Load Layer:** Automatically coerces incoming data structure alignments (e.g., preventing Monday morning schema drift by casting corporate IDs to clean strings) and strips alphanumeric grouping text formatting before metrics conversion.
-2. **Automated Unit Testing (`pytest`):** Core transformation algorithms are fully decoupled into pure isolated functions, verified against table-driven test vectors, edge-case numeric parameters, and structural data noise inputs.
-3. **Declarative Schema Validation (`pandera`):** The ingestion pipeline is armed with a strict semantic quality schema layer. It screens records for missing attributes (`Null`), duplicate flags, boundary ranges, and structural typing variations before writing records downstream.
+## 🏗️ Architecture Design: Enterprise Observability & Self-Healing Layout
+To maximize data product safety, engineering audit transparency, and repository reliability across cloud environments, the framework deploys a strict multi-layered verification and monitoring architecture:
+1. **Enterprise Logging Framework (`logging`):** Completely replaced legacy, unmonitored standard stdout text prints with a formal Python logging machine. Events, environment shifts, and connection faults are systematically tracked across precise execution states (`INFO`, `WARNING`, `CRITICAL`) to allow direct parsing by automated cloud orchestrators.
+2. **First-Class Rejection Metrics & Quarantine:** Malformed textual data corruptions or alphanumeric anomalies are proactively intercepted row-by-row. Instead of masking failures using silent zero conversions that skew corporate averages downstream, corrupt fields are cast to explicit `NULL` maps and actively tracked as a first-class operational quality metric.
+3. **Automated Alerting Thresholds (Fail-Fast):** Incorporates an active runtime processing limit constraint. If the financial data ingestion pipeline encounters a critical row rejection rate greater than **5.0%** of the batch payload volume, the entire framework halts execution immediately and throws a hard termination state (`sys.exit(1)`) to trigger scheduler alerts.
+4. **Self-Healing Pre-Load Layer:** Automatically coerces incoming data structure alignments (e.g., preventing Monday morning schema drift by casting corporate IDs to clean strings) and strips alphanumeric grouping text formatting before metrics conversion.
+5. **Decoupled Unit Testing (`pytest`):** Core transformation math and ESG classification rules are fully decoupled into an independent logic module (`esg_parser.py`) to eliminate environmental connection dependencies, allowing rapid parameterized testing execution.
+6. **Declarative Schema Validation (`pandera`):** Screens the fully aligned, cleaned, and healed dataframe for structural attributes, duplicate keys, and range constraints before allowing downstream relational loading.
 
 ---
 
@@ -31,7 +34,7 @@ By deploying robust type standardizations and strict data quality boundaries, th
 ---
 
 ## 🛠️ Tech Stack & Pipeline Configurations
-- **Data Engineering:** Python (Pandas) executing an inline self-healing text cleanup matrix and strict type formatting via `pandera.pandas`. High-precision accounting aggregates utilize `decimal.Decimal` logic to completely eliminate binary float drifting. Loose zero-interpolations (`.fillna(0)`) are entirely deprecated.
+- **Data Engineering:** Python (Pandas) executing an inline self-healing text cleanup matrix, robust `logging` stream handlers, and strict type formatting via `pandera.pandas`. High-precision accounting aggregates utilize `decimal.Decimal` logic to completely eliminate binary float drifting. Loose zero-interpolations (`.fillna(0)`) are entirely deprecated.
 - **Testing Suite:** `pytest` executing parametrized, table-driven unit tests to simulate and intercept raw input anomalies.
 - **Database Layer:** PostgreSQL object-relational cluster blueprint utilizing batch execution streams (`chunksize=10000`) and secure Connection Pooler configurations (Port `6543`), featuring automated local file backup routing.
 - **BI Visualization:** Microsoft Power BI Desktop tailored with custom DAX data formatting measures and spacing layouts.
@@ -44,11 +47,12 @@ By deploying robust type standardizations and strict data quality boundaries, th
 esg-financial-analytics/
 │
 ├── company_esg_financial_dataset_sample.csv  # Custom Ingestion Sample Dataset
-├── esg_analytics.py                         # Main Core Analytics Engine & Pandera Shield Verification
-├── esg_ingestion.py                         # Relational Storage Ingestion Stream Blueprint
-├── test_esg.py                              # Automated Pytest Suite & Code Crash Simulator
-├── requirements.txt                         # Locked Reproducible Software Dependency Layout
-└── README.md                                # Enterprise Systems Documentation
+├── esg_parser.py                             # Pure Decoupled Parsing & Business Logic (100% Testable)
+├── esg_analytics.py                          # Main Core Analytics Engine & Production Logging Handlers
+├── esg_ingestion.py                          # Relational Storage Ingestion Stream with Logging Blueprint
+├── test_esg.py                               # Parametrized Pytest Suite & Code Crash Simulator
+├── requirements.txt                          # Locked Software Dependency Layout Matrix
+└── README.md                                 # Enterprise Systems Documentation
 ```
 
 ---
@@ -94,14 +98,14 @@ Run the complete unit testing suite using the built-in crash-test vectors to ver
 pytest test_esg.py -v
 ```
 
-### 3. Run the Local Validation Ingestion Pipeline
+### 3. Run the Local Financial Validation Audit Pipeline
 Execute the main analytics script to process the local sample dataset and verify clean terminal metrics outputs:
 ```powershell
 python esg_analytics.py
 ```
 
-### 4. Verify the Architecture Ingestion Blueprint
-Test the dual-mode framework pipeline to inspect corporate ingestion scalability configurations:
+### 4. Inspect the Ingestion Architecture Blueprint
+Test the dual-mode framework pipeline to inspect database ingestion scalability configurations:
 ```powershell
 python esg_ingestion.py
 ```
