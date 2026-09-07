@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 # =====================================================================
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - [UpDataLogic Ingestion] - %(message)s',
+    format='%(asctime)s - %(levelname)s - [UpDataLogic ESG Ingestion] - %(message)s',
     handlers=[logging.StreamHandler(sys.stdout)]
 )
 
@@ -22,7 +22,7 @@ BASE_DIR = Path(__file__).resolve().parent
 DATA_FILE = BASE_DIR / "company_esg_financial_dataset_sample.csv"
 ENV_FILE = BASE_DIR / ".env"
 
-# 1. Define Strict Data Quality Ingestion Shield via Pandera Specification
+# Define Strict Data Quality Ingestion Shield via Pandera Specification
 esg_ingest_schema = pa.DataFrameSchema({
     "CompanyID": pa.Column(str, nullable=False),
     "CompanyName": pa.Column(str, nullable=False),
@@ -30,7 +30,7 @@ esg_ingest_schema = pa.DataFrameSchema({
     "Region": pa.Column(str, nullable=False)
 })
 
-# 2. Database Connection Check with Dynamic Fallback Context Routing
+# Database Connection Check with Dynamic Fallback Context Routing
 try:
     if ENV_FILE.exists():
         load_dotenv(dotenv_path=ENV_FILE, override=True)
@@ -80,7 +80,6 @@ try:
     
     logging.info("📤 4. LOADING: Executing idempotent UPSERT pattern routing directly to database engine...")
     
-    # Enforce strict transaction boundaries to guarantee active storage safety parameters
     with engine.begin() as transaction_conn:
         if str(engine.url).startswith('sqlite'):
             # PRODUCTION BLUEPRINT: Deploy strict CHECK constraints to enforce structural data quality
@@ -120,7 +119,6 @@ try:
                 """)
                 transaction_conn.execute(upsert_query, row.to_dict())
         else:
-            # Remote PostgreSQL cloud storage destination fallback execution path
             for _, row in validated_df.iterrows():
                 upsert_query = text("""
                     INSERT INTO esg_financials_raw ("CompanyID", "CompanyName", "Industry", "Region", "Revenue", "ProfitMargin", "MarketCap", "GrowthRate", "data_quality_status")
