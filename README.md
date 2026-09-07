@@ -24,12 +24,12 @@ To maximize data product safety, engineering audit transparency, and repository 
 
 ---
 
-## 🎯 Key Analytical Insights & Anomalies Discovered
-By deploying robust type standardizations and strict data quality boundaries, the data pipeline isolates critical data-driven phenomena across major international trading blocs:
+## 🎯 Semantic Modeling & Analytical Stratifications
+By deploying robust type standardizations and strict data quality boundaries, the data pipeline isolates critical data-driven phenomena without manufacturing artificial statistical significance:
 
-1. **The Sustainability Premium:** Corporations operating in the **ESG Leader** tier (ESG Score >= 75) demonstrate high operational efficiency, registering a peak **Average Profit Margin of 12.96%**.
-2. **The Profitability Paradox:** Data cross-referencing validates a unique market anomaly — **ESG Laggards** (companies with sustainability markers under 40) command a slightly higher average profit margin than **ESG Average** companies. This margin spike is driven by zero-capital expenditure on environmental policy compliance, presenting a high-yield but volatile market vector.
-3. **The Pollution Core:** Corporate top-line scale (`Revenue`) correlates directly with environmental footprints (`Carbon Emissions`), demonstrating a technical baseline requirement for predictive carbon-tax risk modeling layers.
+1. **Analytical Imputation Hygiene:** Blind zero-interpolations (`.fillna(0)`) are completely deprecated across all financial columns. Corrupted or missing margin tokens are preserved as explicit database `NULL` markers rather than being filled with false zeroes, successfully preventing downstream averaging mechanisms from dragging true performance means toward zero.
+2. **Deterministic Investment Tiering:** Relational records are stratified downstream via semantic rules into structural classification tags (`ESG Leader`, `ESG Average`, `ESG Laggard`) based on sustainability indices, enabling clean cross-referencing capabilities across volatile corporate sectors.
+3. **The Revenue-to-Emission Scale:** Structural telemetry maps confirm that corporate top-line scale (`Revenue`) correlates directly with environmental footprints (`Carbon Emissions`), establishing a technical baseline requirement for predictive carbon-tax risk modeling layers.
 
 ---
 
