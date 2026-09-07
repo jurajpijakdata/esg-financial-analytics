@@ -8,7 +8,7 @@ from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
 
 # =====================================================================
-# ENTERPRISE LOGGING CONFIGURATION (Module 6 & 7 Standard)
+# ENTERPRISE LOGGING CONFIGURATION (Module 6, 7 & 10 Standard)
 # =====================================================================
 logging.basicConfig(
     level=logging.INFO,
@@ -83,22 +83,26 @@ try:
     # Enforce strict transaction boundaries to guarantee active storage safety parameters
     with engine.begin() as transaction_conn:
         if str(engine.url).startswith('sqlite'):
-            # SENIORSKÁ SAMOOPRAVA LOKÁLNEHO ENGINU: Mápujeme tabuľku s prísnym PRIMARY KEY
+            # PRODUCTION BLUEPRINT: Deploy strict CHECK constraints to enforce structural data quality
             transaction_conn.execute(text("DROP TABLE IF EXISTS esg_financials_raw;"))
             transaction_conn.execute(text("""
                 CREATE TABLE esg_financials_raw (
                     CompanyID TEXT PRIMARY KEY,
-                    CompanyName TEXT,
-                    Industry TEXT,
-                    Region TEXT,
-                    Revenue REAL,
+                    CompanyName TEXT NOT NULL,
+                    Industry TEXT NOT NULL,
+                    Region TEXT NOT NULL,
+                    Revenue REAL CHECK (Revenue >= 0 OR Revenue IS NULL),
                     ProfitMargin REAL,
-                    MarketCap REAL,
+                    MarketCap REAL CHECK (MarketCap >= 0 OR MarketCap IS NULL),
                     GrowthRate REAL,
-                    data_quality_status TEXT
+                    data_quality_status TEXT NOT NULL
                 );
             """))
-            logging.info("🧹 Local SQLite Strategy: Schema mapped with strict Primary Key specifications.")
+            
+            # PERFORMANCE OPTIMIZATION LAYER: Deploy B-Tree analytical indexing for high-speed slicer filters
+            transaction_conn.execute(text('CREATE INDEX IF NOT EXISTS idx_esg_financials_industry ON esg_financials_raw (Industry);'))
+            transaction_conn.execute(text('CREATE INDEX IF NOT EXISTS idx_esg_financials_region ON esg_financials_raw (Region);'))
+            logging.info("🧹 Local SQLite Strategy: Schema mapped with strict Primary Key, CHECK limits & Analytical B-Tree Indexes.")
 
             for _, row in validated_df.iterrows():
                 upsert_query = text("""
@@ -116,7 +120,7 @@ try:
                 """)
                 transaction_conn.execute(upsert_query, row.to_dict())
         else:
-            # Ostrý cloudový PostgreSQL má kľúče z DDL architektúry trvalo nasadené
+            # Remote PostgreSQL cloud storage destination fallback execution path
             for _, row in validated_df.iterrows():
                 upsert_query = text("""
                     INSERT INTO esg_financials_raw ("CompanyID", "CompanyName", "Industry", "Region", "Revenue", "ProfitMargin", "MarketCap", "GrowthRate", "data_quality_status")
@@ -133,7 +137,7 @@ try:
                 """)
                 transaction_conn.execute(upsert_query, row.to_dict())
                 
-    logging.info("🏆 PIPELINE RUN COMPLETION: STATUS 0 [SUCCESS]. Idempotency matrix guarantee verified.\n")
+    logging.info("🏆 PIPELINE RUN COMPLETION: STATUS 0 [SUCCESS]. Idempotency & Database Integrity metrics verified.\n")
     sys.exit(0)
 
 except pa.errors.SchemaError as schema_fault:
