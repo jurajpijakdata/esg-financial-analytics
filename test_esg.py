@@ -7,6 +7,8 @@ from esg_parser import clean_esg_numeric_vector, classify_esg_investment_tier
     ("1250000.50", Decimal("1250000.50")),
     ("34.15", Decimal("34.15")),
     ("  89.00  ", Decimal("89.00")),
+    ("1,250,000.50", Decimal("1250000.50")),
+    ("459.2", Decimal("459.2")),
     ("", None),
 ])
 def test_clean_esg_numeric_vector_valid_cases(input_val, expected_output):

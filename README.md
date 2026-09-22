@@ -1,68 +1,62 @@
-# 📊 Corporate ESG & Financial Performance Analytics Pipeline
+# Corporate ESG & Financial Performance Analytics Pipeline
 
-A self-directed data engineering and portfolio framework modeling the statistical relationship between corporate sustainability registries (**ESG Scores**) and actual market profitability. This pipeline processes an analytical dataset containing over **11,000 global corporate records**, implementing a self-healing cleaning architecture, declarative data schema validations, corporate observability logging handlers, automated cloud templates, and relational database SQL modeling.
+[![tests](https://github.com/jurajpijakdata/esg-financial-analytics/actions/workflows/tests.yml/badge.svg)](https://github.com/jurajpijakdata/esg-financial-analytics/actions/workflows/tests.yml)
 
-## 🚀 Live Interactive Dashboard Preview
 ![ESG Financial Dashboard](dashboard_preview.gif)
 
----
+A data pipeline that models the relationship between corporate ESG (Environmental, Social, Governance) scores and financial performance. It cleans messy raw financial figures, validates them, and loads them into a relational warehouse so they can be analyzed together -- for example, whether higher-ESG companies also tend to be more profitable, or how revenue scales with carbon emissions.
 
-## 🏗️ Architecture Design: Enterprise Observability & Self-Healing Layout
-To maximize data product safety, engineering audit transparency, and repository reliability across cloud environments, the framework deploys a strict multi-layered verification and monitoring architecture:
-1. **Enterprise Logging Framework (`logging`):** Completely replaced legacy, unmonitored standard stdout text prints with a formal Python logging machine. Events, environment shifts, and connection faults are systematically tracked across precise execution states (`INFO`, `WARNING`, `CRITICAL`) to allow direct parsing by automated cloud orchestrators.
-2. **First-Class Rejection Metrics & Quarantine:** Malformed textual data corruptions or alphanumeric anomalies are proactively intercepted row-by-row. Instead of masking failures using silent zero conversions that skew corporate averages downstream, corrupt fields are cast to explicit `NULL` maps and actively tracked as a first-class operational quality metric.
-3. **Automated Alerting Thresholds (Fail-Fast):** Incorporates an active runtime processing limit constraint. If the financial data ingestion pipeline encounters a critical row rejection rate greater than **5.0%** of the batch payload volume, the entire framework halts execution immediately and throws a hard termination state (`sys.exit(1)`) to trigger scheduler alerts.
-4. **Self-Healing Pre-Load Layer:** Automatically coerces incoming data structure alignments (e.g., preventing Monday morning schema drift by casting corporate IDs to clean strings) and strips alphanumeric grouping text formatting before metrics conversion.
-5. **Decoupled Unit Testing (`pytest`):** Core transformation math and ESG classification rules are fully decoupled into an independent logic module (`esg_parser.py`) to eliminate environmental connection dependencies, allowing rapid parameterized testing execution.
-6. **Declarative Schema Validation (`pandera`):** Screens the fully aligned, cleaned, and healed dataframe for structural attributes, duplicate keys, and range constraints before allowing downstream relational loading.
+All data in this project is synthetic, modeling realistic company financials and ESG scores without using any real company's data.
 
----
+## What problem this solves
 
-## 🔗 Dataset Provenance & Disclosure (Clone & Run Standard)
-* **Dataset Scope:** 11,000 corporate financial logs scaling up to the active reporting calendar.
-* **Open Disclosure:** To ensure compliance with the **Clone & Run Standard**, this public repository contains a lightweight test validation pool: **`company_esg_financial_dataset_sample.csv` (100 rows)**. Reviewers and target clients can execute the end-to-end analytics and architecture blueprints instantly without heavy system processing overhead.
+Raw financial exports are messy: numbers can carry thousands separators, missing fields show up as blank strings, and -- specific to this dataset -- each company reports once per year, so a company's records only make sense as a time series, not a single snapshot. This pipeline:
 
----
+1. Parses every numeric field safely with Python's `Decimal` type, so accounting figures never drift from binary floating-point rounding.
+2. Quarantines rows with unparseable financial data (`NULL` + a `data_quality_status` flag) instead of silently defaulting them to zero, which would skew every downstream average.
+3. Keys every row on `(CompanyID, Year)` together, not `CompanyID` alone, because each company has one row per reporting year. Keying on `CompanyID` alone means every later year silently overwrites the earlier one on each run -- a 100-row sample would collapse down to 10 surviving rows, one per company, with the entire year-over-year history destroyed.
+4. Loads the full record -- financials **and** the ESG/environmental scores (`ESG_Overall`, `ESG_Environmental`, `ESG_Social`, `ESG_Governance`, `CarbonEmissions`, `WaterUsage`, `EnergyConsumption`) -- into the warehouse, since those scores are the actual subject of the analysis.
 
-## 🎯 Semantic Modeling & Analytical Stratifications
-By deploying robust type standardizations and strict data quality boundaries, the data pipeline isolates critical data-driven phenomena without manufacturing artificial statistical significance:
+## How it's built
 
-1. **Analytical Imputation Hygiene:** Blind zero-interpolations (`.fillna(0)`) are completely deprecated across all financial columns. Corrupted or missing margin tokens are preserved as explicit database `NULL` markers rather than being filled with false zeroes, successfully preventing downstream averaging mechanisms from dragging true performance means toward zero.
-2. **Deterministic Investment Tiering:** Relational records are stratified downstream via semantic rules into structural classification tags (`ESG Leader`, `ESG Average`, `ESG Laggard`) based on sustainability indices, enabling clean cross-referencing capabilities across volatile corporate sectors.
-3. **The Revenue-to-Emission Scale:** Structural telemetry maps confirm that corporate top-line scale (`Revenue`) correlates directly with environmental footprints (`Carbon Emissions`), establishing a technical baseline requirement for predictive carbon-tax risk modeling layers.
+**Idempotent loads.** The pipeline uses `INSERT ... ON CONFLICT (CompanyID, Year) DO UPDATE` instead of `replace` or blind `append`, so it can be re-run on the same data without creating duplicates.
 
----
+**One source of truth for the transformation logic.** Numeric parsing lives in a single tested module (`esg_parser.py`), used by both `esg_analytics.py` and `esg_ingestion.py`, so a given raw value is interpreted the same way no matter which script processes it.
 
-## 🛠️ Tech Stack & Pipeline Configurations
-- **Data Engineering:** Python (Pandas) executing an inline self-healing text cleanup matrix, robust `logging` stream handlers, and strict type formatting via `pandera.pandas`. High-precision accounting aggregates utilize `decimal.Decimal` logic to completely eliminate binary float drifting. Loose zero-interpolations (`.fillna(0)`) are entirely deprecated.
-- **Testing Suite:** `pytest` executing parametrized, table-driven unit tests to simulate and intercept raw input anomalies.
-- **Database Layer:** PostgreSQL object-relational cluster blueprint utilizing batch execution streams (`chunksize=10000`) and secure Connection Pooler configurations (Port `6543`), featuring automated local file backup routing.
-- **BI Visualization:** Microsoft Power BI Desktop tailored with custom DAX data formatting measures and spacing layouts.
+**Decimal-safe money handling.** Financial and ESG figures are parsed with Python's `Decimal` type and stored as `NUMERIC(18,4)` in Postgres.
 
----
+**Quarantine over silent failure.** Rows with unparseable numeric fields get `NULL` and a `data_quality_status = 'UNKNOWN'` flag instead of a false zero. If more than 25% of a run's rows fail validation, the ingestion pipeline stops and exits non-zero rather than loading a bad batch quietly; the analytics script uses a tighter 5% threshold since it's meant to catch problems earlier, before anything reaches the warehouse.
 
-## 📁 Repository Directory Structure
+**Schema validation.** `pandera` checks the shape and types of the data before anything is written or analyzed.
+
+**Tested business logic.** The parsing and classification logic is isolated in its own module and covered by a parametrized pytest suite, plus integration tests that run both pipeline scripts end to end against a clean environment. Tests run automatically in CI on every push (see the badge above).
+
+**Bulk loads.** The load step batches rows into chunked bulk upserts (1,000 rows per round-trip) rather than issuing one database call per row.
+
+## Repository structure
 
 ```text
 esg-financial-analytics/
-│
-├── company_esg_financial_dataset_sample.csv  # Custom Ingestion Sample Dataset
-├── esg_parser.py                             # Pure Decoupled Parsing & Business Logic (100% Testable)
-├── esg_analytics.py                          # Main Core Analytics Engine & Production Logging Handlers
-├── esg_ingestion.py                          # Relational Storage Ingestion Stream with Logging Blueprint
-├── test_esg.py                               # Parametrized Pytest Suite & Code Crash Simulator
-├── requirements.txt                          # Locked Software Dependency Layout Matrix
-└── README.md                                 # Enterprise Systems Documentation
+├── esg_parser.py                             # Parsing & classification logic (unit tested)
+├── esg_analytics.py                          # Local analytics: validates & summarizes the sample dataset
+├── esg_ingestion.py                          # Loads validated data into Postgres (or local SQLite fallback)
+├── test_esg.py                               # Pytest suite for esg_parser.py
+├── test_esg_pipeline.py                      # Integration tests that run both scripts end to end
+├── create_tables.sql                         # Postgres schema, reporting view, and RLS policy
+├── company_esg_financial_dataset_sample.csv  # 100-row sample dataset (10 companies x ~10 years each)
+├── requirements.txt                          # Pinned dependencies
+├── .github/workflows/tests.yml               # CI: runs the test suite on every push/PR
+├── LICENSE
+└── README.md
 ```
 
----
+## Database layer
 
-## 🔧 Database Layer Integration (SQL View)
-To isolate corporate performance tiers dynamically without altering immutable raw transaction registries, the following production view layout was deployed:
+`create_tables.sql` creates the `esg_financials_raw` table (keyed on `CompanyID` + `Year`), a reporting view, and a Row-Level Security policy for the `authenticated` Supabase role. Run it once against a fresh Postgres/Supabase database before pointing `esg_ingestion.py` at real credentials:
 
 ```sql
 CREATE OR REPLACE VIEW public.v_esg_investment_analytics AS
-SELECT 
+SELECT
     "CompanyID" AS company_id,
     "CompanyName" AS company_name,
     "Industry" AS industry,
@@ -73,7 +67,7 @@ SELECT
     "MarketCap" AS market_cap,
     "ESG_Overall" AS esg_score,
     "CarbonEmissions" AS carbon_emissions,
-    CASE 
+    CASE
         WHEN "ESG_Overall" >= 75 THEN 'ESG Leader (High Sustainability)'
         WHEN "ESG_Overall" >= 40 THEN 'ESG Average (Medium Sustainability)'
         ELSE 'ESG Laggard (Low Sustainability)'
@@ -82,33 +76,45 @@ SELECT
 FROM public.esg_financials_raw;
 ```
 
----
+## Quick start
 
-## 🚀 Quick Start (Clone & Run Standard)
+### 1. Install dependencies
 
-### 1. Replicate the Dependencies Layout
-Install standard Python dependencies inside your local execution environment:
-```powershell
+```bash
 pip install -r requirements.txt
 ```
 
-### 2. Execute Automated Code Testing
-Run the complete unit testing suite using the built-in crash-test vectors to verify validation stability:
-```powershell
-pytest test_esg.py -v
+### 2. Run the test suite
+
+```bash
+pytest -v
 ```
 
-### 3. Run the Local Financial Validation Audit Pipeline
-Execute the main analytics script to process the local sample dataset and verify clean terminal metrics outputs:
-```powershell
+### 3. (Optional) Configure database credentials
+
+Copy `.env.example` to `.env` and fill in your Supabase/Postgres connection details, then run `create_tables.sql` against that database once.
+
+If you skip this step, `esg_ingestion.py` automatically falls back to a local SQLite database, so you can run everything end to end with no cloud credentials.
+
+### 4. Run the analytics script
+
+```bash
 python esg_analytics.py
 ```
 
-### 4. Inspect the Ingestion Architecture Blueprint
-Test the dual-mode framework pipeline to inspect database ingestion scalability configurations:
-```powershell
+Validates the sample dataset and prints average profit margin by industry.
+
+### 5. Run the ingestion pipeline
+
+```bash
 python esg_ingestion.py
 ```
 
+Loads the sample dataset into your configured database (or the local SQLite fallback).
+
+## Data protection note
+
+This project uses only synthetic, randomly generated data -- no real company or personal information is processed anywhere in the pipeline.
+
 ---
-*Engineered under the UpDataLogic Performance Framework for transparent, honest, and reproducible analytics pipelines.*
+*Engineered under the UpDataLogic framework for transparent, honest, and reproducible analytics pipelines.*

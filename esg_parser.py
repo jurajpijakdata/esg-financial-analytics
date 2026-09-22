@@ -2,29 +2,35 @@ import pandas as pd
 from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
+
 def clean_esg_numeric_vector(value: Any) -> Optional[Decimal]:
     """
     Safely normalizes and validates corporate financial inputs without silent zero corruption.
 
-    This function strips potential spacing anomalies and standardizes European/US comma system 
-    separators into clean numeric tokens. Malformed, incomplete, or corrupted items are mapped 
-    directly to strict None to register transparently inside downstream quarantine quality trackers.
+    This dataset uses a plain decimal point (e.g. "459.2"). Commas that show up in raw
+    exports of this kind of data are thousands separators (e.g. "1,250,000.50"), not a
+    decimal marker, so they are stripped rather than converted into a decimal point --
+    treating a comma as a decimal separator would silently corrupt any thousands-formatted
+    number into an invalid string (e.g. "1,234.56" -> "1.234.56") that gets rejected instead
+    of parsed. Malformed, incomplete, or corrupted items are mapped directly to strict None
+    to register transparently inside downstream quarantine quality trackers.
 
     Args:
         value (Any): The raw corporate financial column slice (e.g., Revenue, ProfitMargin).
 
     Returns:
-        Optional[Decimal]: A sanitized high-precision Decimal object for accounting calculations, 
+        Optional[Decimal]: A sanitized high-precision Decimal object for accounting calculations,
                            or None if unparseable tokens or drift anomalies are isolated.
     """
     if pd.isna(value) or str(value).strip() == '':
         return None
-    
-    clean_str: str = str(value).strip().replace(',', '.')
+
+    clean_str: str = str(value).strip().replace(',', '')
     try:
         return Decimal(clean_str)
     except InvalidOperation:
         return None
+
 
 def classify_esg_investment_tier(score: Any) -> str:
     """
@@ -34,7 +40,7 @@ def classify_esg_investment_tier(score: Any) -> str:
         score (Any): The validated numerical ESG overall score attribute.
 
     Returns:
-        str: A standardized enterprise investment tier string classification tag, 
+        str: A standardized enterprise investment tier string classification tag,
              or 'UNKNOWN' if structural data noise is captured.
     """
     if score is None or pd.isna(score):
