@@ -8,6 +8,11 @@ from pathlib import Path
 # Import the decoupled tested business logic from our parser module
 from esg_parser import clean_esg_numeric_vector
 
+# Force UTF-8 stdout so the emoji in the log messages below never crash a
+# non-interactive run on Windows (its default console codepage can't encode
+# them, which otherwise silently drops all logging output).
+sys.stdout.reconfigure(encoding="utf-8")
+
 # =====================================================================
 # ENTERPRISE LOGGING CONFIGURATION (Module 6 Standard)
 # =====================================================================
@@ -77,6 +82,9 @@ try:
     logging.info("🛡️ 3. VALIDATION: Running declarative structural data quality tests via Pandera schema evaluation...")
     validated_df = esg_data_schema.validate(df)
     
+    if METRICS_TRACKER["total_records_extracted"] == 0:
+        raise ValueError("Pipeline execution aborted. Source dataset contains zero rows.")
+
     rejection_rate = (METRICS_TRACKER["rejected_records_critical"] / METRICS_TRACKER["total_records_extracted"]) * 100
     logging.info(f"📊 DATA QUALITY METRICS: Clean/Healed: {METRICS_TRACKER['successfully_healed_records']:,} | Quarantined/NULL: {METRICS_TRACKER['rejected_records_critical']:,} ({rejection_rate:.2f}%)")
     
